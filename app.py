@@ -1,0 +1,122 @@
+import logging
+from flask import Flask, render_template
+from flask_ask import Ask, statement, question, session
+import datetime
+import json
+
+app = Flask(__name__)
+ask = Ask(app, "/")
+logging.getLogger("flask_ask").setLevel(logging.DEBUG)
+
+ASK_APPLICATION_ID = 'amzn1.ask.skill.0dbc5fde-252a-4809-871b-0657c7387d03'
+ASK_VERIFY_REQUESTS = True
+ASK_VERIFY_TIMESTAMP_DEBUG = True
+cancel_statement = "Keep healthy with daily exercises, see you tomorrow"
+
+@ask.intent("exercise_recommendation")
+def main_function():
+    return exercise_recommendation()
+
+	
+@ask.intent("AMAZON.StopIntent")
+def stop_function():
+    return statement(cancel_statement)
+
+	
+@ask.intent("AMAZON.CancelIntent")
+def cancel_function():
+    return statement(cancel_statement)
+
+
+@ask.launch
+def launched():
+    return exercise_recommendation()
+
+@ask.session_ended
+def session_ended():
+    return "{}", 200
+
+# --------------- Main handler ------------------
+def lambda_handler(event, context):
+    if event['session']['application']['applicationId'] != "amzn1.ask.skill.0dbc5fde-252a-4809-871b-0657c7387d03":
+        print("wrong app id")
+        return ''
+    print("event.session.application.applicationId=" +
+          str(event['session']['application']['applicationId']))
+    if event['request']['type'] == "IntentRequest":
+        return on_intent(event['request'], event['session'])
+
+
+# --------------- Response handler ------------------
+def build_speechlet_response(title, output, reprompt_text, should_end_session):
+    return {
+        'outputSpeech': {
+            'type': 'PlainText',
+            'text': output
+        },
+        'card': {
+            'type': 'Simple',
+            'title': title,
+            'content': output
+        },
+        'reprompt': {
+            'outputSpeech': {
+                'type': 'PlainText',
+                'text': reprompt_text
+            }
+        },
+        'shouldEndSession': should_end_session
+    }
+
+
+def build_response(session_attributes, speechlet_response):
+    jj = {
+        'version': '1.0',
+        'sessionAttributes': session_attributes,
+        'response': speechlet_response
+    }
+    return app.response_class(json.dumps(jj), content_type='application/json')
+
+
+# --------------- Events ------------------
+def on_intent(intent_request, session):
+    print("on_intent requestId=" + intent_request['requestId'] +
+          ", sessionId=" + session['sessionId'])
+
+    intent = intent_request['intent']
+    intent_name = intent_request['intent']['name']
+    if intent_name == "exercise_recommendation":
+        return exercise_recommendation()
+
+
+#--------------- App Functions ------------------------
+def exercise_recommendation():
+    session_attributes = {}
+    card_title = "Daily Exercise Recommendation"
+    exercise = get_exercise()
+    speech_output = "Here is daily exercise recommendation for you. You can exercise "+exercise+" today."
+    reprompt_text = "Today's exercise recommendation is "+exercise
+    should_end_session = True
+    return build_response(session_attributes, build_speechlet_response(
+        card_title, speech_output, reprompt_text, should_end_session))
+
+def get_exercise():
+    now = datetime.datetime.now()
+    day = now.day
+    return exercise_list[int(day)%10]
+
+#---------------- Exercise List ----------------------------
+exercise_list = ("Supermans", "Push-up", "Contralateral Limb Raises", "Bent Knee Push-up", "Downward-facing Dog", "Bent-Knee Sit-up / Crunches"
+, "Push-up with Single-leg Raise", "Front Plank", "Side Plank with Bent Knee", "Supine Reverse Crunches")
+
+
+if __name__ == '__main__':
+    if 'ASK_VERIFY_REQUESTS' in os.environ:
+        verify = str(os.environ.get('ASK_VERIFY_REQUESTS', '')).lower()
+        if verify == 'false':
+            app.config['ASK_VERIFY_REQUESTS'] = False
+	app.config['ASK_APPLICATION_ID'] = 'amzn1.ask.skill.0dbc5fde-252a-4809-871b-0657c7387d03'
+	app.config['ASK_VERIFY_REQUESTS'] = True
+	app.config['ASK_VERIFY_TIMESTAMP_DEBUG'] = True
+    app.run(debug=True)
+
